@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng Điều Khiển Nhiệt Độ & Độ Ẩm Kép</title>
+    <!-- Tải Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-green': '#10b981',
+                        'light-mint': '#e0f2f1',
+                        'humid-color': '#3b82f6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
+        /* Các lớp CSS cho vòng đo được giữ nguyên và tối ưu */
+        .gauge-ring {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            padding: 10px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.05); 
+            transition: background 300ms ease-out, opacity 500ms;
+        }
+        
+        .gauge-container {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            margin: 0 auto;
+        }
+
+        .gauge-inner {
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 5px 10px -3px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .gauge-handle {
+            cursor: grab; 
+            touch-action: none;
+            transition: background-color 300ms ease-out;
+        }
+        
+        .gauge-handle:active {
+            cursor: grabbing;
+        }
+
+        @media (min-width: 640px) {
+            .gauge-ring {
+                width: 140px;
+                height: 140px;
+            }
+            .gauge-container {
+                width: 160px;
+                height: 160px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen p-4 font-sans">
+
+    <div id="dashboard" class="w-full max-w-lg bg-white p-6 rounded-3xl shadow-xl space-y-6">
+
+        <!-- 1. Power Switch -->
+        <div class="flex justify-end">
+            <button id="powerToggle" class="flex items-center p-1 rounded-full transition-colors duration-300"
+                style="background-color: #10b981;">
+                <svg id="powerIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                    <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+                <span id="powerText" class="text-sm font-semibold text-white">Bật</span>
+                <div id="switchDot" class="h-4 w-4 bg-white rounded-full ml-2 transition-transform duration-300 transform translate-x-0"></div>
+            </button>
+        </div>
+
+        <!-- 2. Current Status Bar -->
+        <div class="flex items-center justify-center bg-light-mint bg-opacity-70 p-4 rounded-xl shadow-inner">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary-green mr-3" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1.172c1.472.285 2.766 1.05 3.793 2.077l.707-.707a1 1 0 111.414 1.414l-.707.707A7.001 7.001 0 0116 14.828V16a1 1 0 11-2 0v-.586l.293-.293A4.954 4.954 0 0010 6a4.954 4.954 0 00-4.293 2.293L6 8.586V10a1 1 0 11-2 0V7.828l-.707-.707a1 1 0 011.414-1.414l.707.707A7.001 7.001 0 019 4.172V3a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            <span id="currentStatus" class="text-xl font-bold text-gray-800">17°C / 65%</span>
+        </div>
+        
+        <!-- 3. Dual Main Displays (Gauges) -->
+        <div class="flex flex-col sm:flex-row justify-around items-center space-y-8 sm:space-y-0 sm:space-x-4 pt-4">
+
+            <!-- 3A. Temperature Gauge -->
+            <div id="tempGaugeSection" class="p-2 w-full sm:w-1/2 flex flex-col items-center">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <span id="tempColorDot" class="inline-block w-3 h-3 rounded-full mr-2" style="background-color: #10b981;"></span> Nhiệt độ
+                </h3>
+                <div id="tempGaugeRingContainer" class="gauge-container">
+                    <div id="tempGaugeRing" class="gauge-ring">
+                        <div class="gauge-inner">
+                            <div class="flex flex-col items-center transform translate-y-2">
+                                <div class="text-4xl font-extrabold flex items-start">
+                                    <span id="tempValue" style="color: #10b981;">17</span>
+                                    <span id="tempUnit" class="text-xl ml-1 mt-1">°C</span>
+                                </div>
+                                <p id="tempLabel" class="text-xs font-medium text-gray-500 mt-1">Lý tưởng</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="tempGaugeHandleRotator" class="absolute inset-0 flex justify-center items-start" 
+                         style="transform-origin: center; transform: rotate(0deg);">
+                        <div id="tempGaugeHandle" data-type="temp"
+                             class="gauge-handle w-6 h-6 rounded-full shadow-xl border-2 border-white 
+                                     -mt-3 transform translate-y-[-10px] sm:translate-y-[-15px] 
+                                     transition-colors duration-200 hover:scale-110" style="background-color: #10b981;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3B. Humidity Gauge -->
+            <div id="humidGaugeSection" class="p-2 w-full sm:w-1/2 flex flex-col items-center">
+                 <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <span id="humidColorDot" class="inline-block w-3 h-3 rounded-full bg-humid-color mr-2"></span> Độ ẩm
+                </h3>
+                <div id="humidGaugeRingContainer" class="gauge-container">
+                    <div id="humidGaugeRing" class="gauge-ring">
+                        <div class="gauge-inner">
+                            <div class="flex flex-col items-center transform translate-y-2">
+                                <div class="text-4xl font-extrabold text-humid-color flex items-start">
+                                    <span id="humidValue">65</span>
+                                    <span id="humidUnit" class="text-xl ml-1 mt-1">%</span>
+                                </div>
+                                <p id="humidLabel" class="text-xs font-medium text-gray-500 mt-1">Thoải mái</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="humidGaugeHandleRotator" class="absolute inset-0 flex justify-center items-start" 
+                         style="transform-origin: center; transform: rotate(0deg);">
+                        <div id="humidGaugeHandle" data-type="humid"
+                             class="gauge-handle w-6 h-6 rounded-full bg-humid-color shadow-xl border-2 border-white 
+                                     -mt-3 transform translate-y-[-10px] sm:translate-y-[-15px] 
+                                     transition-colors duration-200 hover:scale-110">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        
+        <!-- 4. Fan Control -->
+        <div class="space-y-3 pt-2">
+            <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary-green mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+                    <circle cx="12" cy="12" r="7"></circle>
+                    <path d="M16 12a4 4 0 0 0-4-4v8"></path>
+                </svg>
+                Tốc độ Quạt
+            </h3>
+            <div id="fanControlContainer" class="grid grid-cols-5 gap-2">
+                <button class="fan-level py-2 rounded-lg text-sm font-medium transition-all duration-200" data-speed="1">Thấp</button>
+                <button class="fan-level py-2 rounded-lg text-sm font-medium transition-all duration-200" data-speed="2">TB</button>
+                <button class="fan-level py-2 rounded-lg text-sm font-medium transition-all duration-200" data-speed="3">Khá</button>
+                <button class="fan-level py-2 rounded-lg text-sm font-medium transition-all duration-200" data-speed="4">Cao</button>
+                <button class="fan-level py-2 rounded-lg text-sm font-medium transition-all duration-200" data-speed="5">Mạnh</button>
+            </div>
+        </div>
+        
+        <!-- User ID for debug/sharing -->
+        <div class="mt-4 text-center text-xs text-gray-400">
+            User ID: <span id="displayUserId">...</span>
+        </div>
+
+    </div>
+    
+    <!-- Message Box -->
+    <div id="messageBox" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 text-white p-4 rounded-xl shadow-2xl z-50 transition-opacity duration-300 opacity-0 pointer-events-none" role="status">
+        <p id="messageText" class="font-semibold"></p>
+    </div>
+
+    <!-- FIREBASE SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- CÁC THAM CHIẾU VÀ BIẾN GLOBAL ---
+        
+        // --- ERA IoT CONFIG (Cần thay đổi theo thông số thực tế của ERA IoT) ---
+        const ERA_IOT_API_URL = "https://era-iot-platform.com/api/v1/device/control";
+        const DEVICE_ID = "YourEraDeviceID_12345";
+        const ERA_AUTH_TOKEN = "YOUR_ERA_API_KEY_HERE"; // Thay bằng token ERA IoT thực tế
+        
+        // --- FIREBASE GLOBALS & CONFIG ---
+        let db = null;
+        let auth = null;
+        let userId = null;
+        const AC_STATE_COLLECTION = "smart_ac_state";
+        
+        // --- UI ELEMENT REFERENCES (Tối ưu hóa) ---
+        const ELEMENTS = {
+            powerToggle: document.getElementById('powerToggle'),
+            powerText: document.getElementById('powerText'),
+            switchDot: document.getElementById('switchDot'),
+            dashboard: document.getElementById('dashboard'),
+            currentStatus: document.getElementById('currentStatus'),
+            fanControlContainer: document.getElementById('fanControlContainer'),
+            messageBox: document.getElementById('messageBox'),
+            messageText: document.getElementById('messageText'),
+            displayUserId: document.getElementById('displayUserId'),
+            
+            // Tham chiếu cho Gauges
+            tempValue: document.getElementById('tempValue'),
+            tempUnit: document.getElementById('tempUnit'),
+            tempLabel: document.getElementById('tempLabel'),
+            tempGaugeRing: document.getElementById('tempGaugeRing'),
+            tempGaugeHandle: document.getElementById('tempGaugeHandle'),
+            tempGaugeHandleRotator: document.getElementById('tempGaugeHandleRotator'),
+            tempGaugeRingContainer: document.getElementById('tempGaugeRingContainer'),
+            tempColorDot: document.getElementById('tempColorDot'),
+            
+            humidValue: document.getElementById('humidValue'),
+            humidUnit: document.getElementById('humidUnit'),
+            humidLabel: document.getElementById('humidLabel'),
+            humidGaugeRing: document.getElementById('humidGaugeRing'),
+            humidGaugeHandle: document.getElementById('humidGaugeHandle'),
+            humidGaugeHandleRotator: document.getElementById('humidGaugeHandleRotator'),
+            humidGaugeRingContainer: document.getElementById('humidGaugeRingContainer'),
+            humidColorDot: document.getElementById('humidColorDot'),
+        };
+
+        // --- TRẠNG THÁI ỨNG DỤNG (Local State) ---
+        let isPowerOn = true;
+        let fanSpeed = 3; 
+        let targetState = {
+            temp: { value: 17, unit: '°C', label: 'Lý tưởng', min: 0, max: 40, step: 1, type: 'temp' }, 
+            humid: { value: 65, unit: '%', label: 'Thoải mái', min: 0, max: 100, step: 5, type: 'humid' }
+        };
+
+        // --- BIẾN KÉO/THẢ ---
+        let isDragging = false;
+        let activeGaugeType = null;
+        let tempMetrics = { centerX: 0, centerY: 0, radius: 0 };
+        let humidMetrics = { centerX: 0, centerY: 0, radius: 0 };
+        
+        // --- ERA IoT Integration Logic (Conceptual) ---
+
+        /**
+         * Gửi lệnh điều khiển tới nền tảng ERA IoT.
+         * @param {object} state - Trạng thái điều khiển hiện tại.
+         */
+        async function sendControlToEraIoT(state) {
+            console.log("Sending control command to ERA IoT...");
+            
+            const controlPayload = {
+                deviceId: DEVICE_ID,
+                command: {
+                    power: state.isPowerOn ? "ON" : "OFF",
+                    target_temp: state.targetTemp,
+                    target_humid: state.targetHumid,
+                    fan_speed: state.fanSpeed
+                }
+            };
+
+            try {
+                // Sử dụng hàm fetch với exponential backoff để xử lý lỗi mạng/throttle (Tối ưu)
+                await retryFetch(ERA_IOT_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${ERA_AUTH_TOKEN}`
+                    },
+                    body: JSON.stringify(controlPayload)
+                }, 3); // Thử lại tối đa 3 lần
+
+                console.log("ERA IoT control request sent successfully.");
+                showMessage("Đã gửi lệnh điều khiển tới ERA IoT!");
+
+            } catch (error) {
+                console.error("Error communicating with ERA IoT:", error);
+                showMessage("Lỗi kết nối tới ERA IoT. Kiểm tra console.");
+            }
+        }
+        
+        /**
+         * Hàm fetch với Exponential Backoff.
+         * @param {string} url - URL API.
+         * @param {object} options - Tùy chọn fetch.
+         * @param {number} retries - Số lần thử lại tối đa.
+         */
+        async function retryFetch(url, options, retries) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        throw new Error(`API failed with status: ${response.status}`);
+                    }
+                    return response;
+                } catch (error) {
+                    if (i === retries - 1) throw error; // Re-throw last error
+                    const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s, ...
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        // --- FIREBASE LOGIC ---
+
+        function getAcStateDocRef() {
+            if (!db || !userId) {
+                console.error("Database or User ID is not ready.");
+                return null;
+            }
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const docPath = `/artifacts/${appId}/users/${userId}/${AC_STATE_COLLECTION}/config`;
+            return doc(db, docPath);
+        }
+
+        /**
+         * Lưu trạng thái hiện tại vào Firestore và kích hoạt gửi lệnh tới ERA IoT.
+         */
+        function saveStateToFirestore() {
+            const docRef = getAcStateDocRef();
+            if (!docRef) return;
+
+            const stateToSave = {
+                isPowerOn: isPowerOn,
+                targetTemp: targetState.temp.value,
+                targetHumid: targetState.humid.value,
+                fanSpeed: fanSpeed,
+                timestamp: new Date().getTime()
+            };
+            
+            // 1. Gửi lệnh điều khiển đến ERA IoT
+            sendControlToEraIoT(stateToSave);
+
+            // 2. Lưu trạng thái vào Firestore để đồng bộ UI
+            setDoc(docRef, stateToSave)
+                .then(() => console.log("State saved to Firestore (UI sync)."))
+                .catch(error => console.error("Error saving state to Firestore:", error));
+        }
+
+        /**
+         * Cập nhật trạng thái cục bộ từ dữ liệu Firestore.
+         */
+        function loadStateFromFirestore(loadedState) {
+            let stateChanged = false;
+            
+            if (loadedState.isPowerOn !== isPowerOn) {
+                isPowerOn = loadedState.isPowerOn ?? true;
+                stateChanged = true;
+            }
+            if (loadedState.targetTemp !== targetState.temp.value) {
+                targetState.temp.value = loadedState.targetTemp ?? 17;
+                stateChanged = true;
+            }
+            if (loadedState.targetHumid !== targetState.humid.value) {
+                targetState.humid.value = loadedState.targetHumid ?? 65;
+                stateChanged = true;
+            }
+            if (loadedState.fanSpeed !== fanSpeed) {
+                fanSpeed = loadedState.fanSpeed ?? 3;
+                stateChanged = true;
+            }
+
+            if (stateChanged) {
+                updateUI();
+                console.log("State loaded from Firestore and UI updated.");
+            }
+        }
+
+        function listenForStateChanges() {
+            const docRef = getAcStateDocRef();
+            if (!docRef) return;
+            
+            setLogLevel('debug');
+
+            onSnapshot(docRef, (docSnapshot) => {
+                if (docSnapshot.exists()) {
+                    loadStateFromFirestore(docSnapshot.data());
+                } else {
+                    console.log("No saved state found. Using default values and saving.");
+                    saveStateToFirestore(); 
+                }
+            }, (error) => {
+                console.error("Error listening to state changes:", error);
+            });
+        }
+
+        async function setupFirebase() {
+            try {
+                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+                if (Object.keys(firebaseConfig).length === 0) {
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                if (typeof __initial_auth_token !== 'undefined') {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                ELEMENTS.displayUserId.textContent = userId;
+                console.log("Firebase initialized. User ID:", userId);
+
+                listenForStateChanges();
+                
+            } catch (error) {
+                console.error("Error setting up Firebase:", error);
+            }
+        }
+
+
+        // --- UI UTILITY FUNCTIONS ---
+
+        function interpolateColor(color1, color2, factor) {
+            // ... (Hàm này giữ nguyên)
+            if (factor < 0) factor = 0;
+            if (factor > 1) factor = 1;
+
+            const r1 = parseInt(color1.substring(1, 3), 16);
+            const g1 = parseInt(color1.substring(3, 5), 16);
+            const b1 = parseInt(color1.substring(5, 7), 16);
+
+            const r2 = parseInt(color2.substring(1, 3), 16);
+            const g2 = parseInt(color2.substring(3, 5), 16);
+            const b2 = parseInt(color2.substring(5, 7), 16);
+
+            const r = Math.round(r1 + (r2 - r1) * factor);
+            const g = Math.round(g1 + (g2 - g1) * factor);
+            const b = Math.round(b1 + (b2 - b1) * factor);
+
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+        }
+
+        function getColorForTemp(temp, minTemp, maxTemp) {
+            const lowColor = '#3b82f6';
+            const midColor = '#10b981';
+            const highColor = '#ef4444';
+            const midPoint = (minTemp + maxTemp) / 2;
+
+            let factor;
+            let finalColor;
+
+            if (temp <= midPoint) {
+                factor = (temp - minTemp) / (midPoint - minTemp);
+                finalColor = interpolateColor(lowColor, midColor, factor);
+            } else {
+                factor = (temp - midPoint) / (maxTemp - midPoint);
+                finalColor = interpolateColor(midColor, highColor, factor);
+            }
+            return finalColor;
+        }
+
+        function angleToValue(angle, minValue, maxValue, step) {
+            const range = maxValue - minValue;
+            let value = (angle / 360) * range + minValue; 
+            value = Math.round(value / step) * step;
+            return Math.max(minValue, Math.min(maxValue, value));
+        }
+
+        function updateHandlePosition(elementRotator, currentValue, minValue, maxValue) {
+            const range = maxValue - minValue;
+            let angle = ((currentValue - minValue) / range) * 360;
+            angle = angle % 360; 
+            elementRotator.style.transform = `rotate(${angle}deg)`;
+        }
+        
+        function showMessage(message) {
+            ELEMENTS.messageText.textContent = message;
+            ELEMENTS.messageBox.classList.remove('opacity-0', 'pointer-events-none');
+            ELEMENTS.messageBox.classList.add('opacity-100');
+            setTimeout(() => {
+                ELEMENTS.messageBox.classList.remove('opacity-100');
+                ELEMENTS.messageBox.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // --- HÀM CẬP NHẬT UI ĐỘC LẬP (MASTER RENDER) ---
+
+        function updatePowerUI() {
+            const { powerToggle, powerText, switchDot, dashboard } = ELEMENTS;
+            const inactiveColor = '#9ca3af';
+
+            if (isPowerOn) {
+                powerToggle.style.backgroundColor = '#10b981'; 
+                powerText.textContent = 'Bật';
+                switchDot.classList.remove('translate-x-full');
+                switchDot.classList.add('translate-x-0');
+                dashboard.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                powerToggle.style.backgroundColor = inactiveColor; 
+                powerText.textContent = 'Tắt';
+                switchDot.classList.remove('translate-x-0');
+                switchDot.classList.add('translate-x-full');
+                dashboard.classList.add('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        function updateFanUI() {
+            const fanButtons = ELEMENTS.fanControlContainer.querySelectorAll('.fan-level');
+            const inactiveStyle = ['opacity-50', 'pointer-events-none'];
+            const activeStyle = ['bg-primary-green', 'text-white', 'shadow-md', 'ring-2', 'ring-primary-green/50'];
+            const defaultStyle = ['text-gray-600', 'bg-gray-100', 'hover:bg-gray-200'];
+            
+            fanButtons.forEach(button => {
+                const speed = parseInt(button.getAttribute('data-speed'));
+                
+                // Reset classes
+                button.classList.remove(...activeStyle, ...inactiveStyle);
+                button.classList.add(...defaultStyle);
+
+                if (isPowerOn) {
+                    if (speed === fanSpeed) {
+                        button.classList.add(...activeStyle);
+                        button.classList.remove(...defaultStyle);
+                    }
+                } else {
+                    button.classList.add(...inactiveStyle);
+                }
+            });
+        }
+        
+        function updateGaugeUI(gaugeData, elementPrefix) {
+            const valueEl = ELEMENTS[`${elementPrefix}Value`];
+            const unitEl = ELEMENTS[`${elementPrefix}Unit`];
+            const labelEl = ELEMENTS[`${elementPrefix}Label`];
+            const ringEl = ELEMENTS[`${elementPrefix}GaugeRing`];
+            const handleEl = ELEMENTS[`${elementPrefix}GaugeHandle`];
+            const rotatorEl = ELEMENTS[`${elementPrefix}GaugeHandleRotator`];
+            const colorDotEl = ELEMENTS[`${elementPrefix}ColorDot`];
+
+            const inactiveColor = '#9ca3af';
+            let activeColor, isTemp = gaugeData.type === 'temp';
+
+            if (isTemp) {
+                activeColor = getColorForTemp(gaugeData.value, gaugeData.min, gaugeData.max);
+            } else {
+                activeColor = '#3b82f6'; // Humid color is static blue
+            }
+
+            // 1. Cập nhật Giá trị và Label
+            valueEl.textContent = gaugeData.value;
+            unitEl.textContent = gaugeData.unit;
+            labelEl.textContent = gaugeData.label;
+
+            // 2. Cập nhật Vị trí Tay cầm
+            updateHandlePosition(rotatorEl, gaugeData.value, gaugeData.min, gaugeData.max);
+
+            // 3. Cập nhật Màu sắc và Vòng tròn (Ring)
+            if (!isPowerOn) {
+                // Tắt nguồn
+                ringEl.style.background = '#e5e7eb';
+                valueEl.style.color = inactiveColor;
+                handleEl.style.backgroundColor = inactiveColor;
+                if (colorDotEl) colorDotEl.style.backgroundColor = inactiveColor;
+            } else {
+                // Bật nguồn
+                const percent = ((gaugeData.value - gaugeData.min) / (gaugeData.max - gaugeData.min));
+                const angle = percent * 360;
+
+                // Dynamic/Static Color
+                valueEl.style.color = activeColor;
+                handleEl.style.backgroundColor = activeColor;
+                if (colorDotEl) colorDotEl.style.backgroundColor = activeColor;
+                
+                // Conic Gradient cho tiến trình
+                ringEl.style.background = `conic-gradient(${activeColor} 0deg, ${activeColor} ${angle}deg, #e5e7eb ${angle}deg, #e5e7eb 360deg)`;
+            }
+        }
+        
+        /**
+         * Hàm tổng hợp để cập nhật toàn bộ UI.
+         */
+        function updateUI() {
+            updatePowerUI();
+            updateFanUI();
+            updateGaugeUI(targetState.temp, 'temp');
+            updateGaugeUI(targetState.humid, 'humid');
+            ELEMENTS.currentStatus.textContent = `${targetState.temp.value}°C / ${targetState.humid.value}%`;
+        }
+
+
+        // --- LOGIC DRAG/TOUCH ---
+
+        function updateGaugeMetrics() {
+            // Lấy kích thước và vị trí cho kéo/thả
+            const tempRect = ELEMENTS.tempGaugeRingContainer.getBoundingClientRect();
+            tempMetrics.centerX = tempRect.left + tempRect.width / 2;
+            tempMetrics.centerY = tempRect.top + tempRect.height / 2;
+
+            const humidRect = ELEMENTS.humidGaugeRingContainer.getBoundingClientRect();
+            humidMetrics.centerX = humidRect.left + humidRect.width / 2;
+            humidMetrics.centerY = humidRect.top + humidRect.height / 2;
+        }
+
+        function handleStart(event) {
+            if (!isPowerOn) return; 
+
+            const handleElement = event.currentTarget;
+            activeGaugeType = handleElement.getAttribute('data-type');
+            
+            if (!activeGaugeType) return;
+
+            isDragging = true;
+            handleElement.classList.add('scale-125', 'shadow-2xl');
+            
+            if (event.type === 'touchstart') {
+                event.preventDefault();
+            }
+            updateGaugeMetrics(); 
+            
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', handleEnd);
+            document.addEventListener('touchmove', handleMove);
+            document.addEventListener('touchend', handleEnd);
+        }
+
+        function handleMove(event) {
+            if (!isDragging || !activeGaugeType) return;
+
+            const clientX = event.clientX || event.touches[0].clientX;
+            const clientY = event.clientY || event.touches[0].clientY;
+
+            const metrics = activeGaugeType === 'temp' ? tempMetrics : humidMetrics;
+            const currentModeData = activeGaugeType === 'temp' ? targetState.temp : targetState.humid;
+            const handleRotator = activeGaugeType === 'temp' ? ELEMENTS.tempGaugeHandleRotator : ELEMENTS.humidGaugeHandleRotator;
+
+            const deltaX = clientX - metrics.centerX;
+            const deltaY = clientY - metrics.centerY;
+            
+            let angleRad = Math.atan2(deltaY, deltaX); 
+            let angleDeg = angleRad * (180 / Math.PI);
+            
+            angleDeg += 90; 
+            if (angleDeg < 0) {
+                angleDeg += 360;
+            }
+            
+            // Cập nhật vị trí tay cầm ngay lập tức
+            handleRotator.style.transform = `rotate(${angleDeg}deg)`;
+
+            // Tính toán giá trị mới
+            const newValue = angleToValue(angleDeg, currentModeData.min, currentModeData.max, currentModeData.step);
+            
+            if (currentModeData.value !== newValue) {
+                currentModeData.value = newValue;
+                updateUI(); // Cập nhật UI ngay lập tức
+            }
+        }
+
+        function handleEnd(event) {
+            if (!isDragging) return;
+            
+            const handleElement = activeGaugeType === 'temp' ? ELEMENTS.tempGaugeHandle : ELEMENTS.humidGaugeHandle;
+
+            isDragging = false;
+            activeGaugeType = null;
+            
+            handleElement.classList.remove('scale-125', 'shadow-2xl');
+            
+            // GỌI HÀM LƯU TRẠNG THÁI CUỐI CÙNG VÀ GỬI LỆNH TỚI ERA IoT
+            saveStateToFirestore(); 
+            
+            document.removeEventListener('mousemove', handleMove);
+            document.removeEventListener('mouseup', handleEnd);
+            document.removeEventListener('touchmove', handleMove);
+            document.removeEventListener('touchend', handleEnd);
+        }
+
+        // --- SETUP LISTENERS ---
+
+        function setupEventListeners() {
+            ELEMENTS.tempGaugeHandle.addEventListener('mousedown', handleStart);
+            ELEMENTS.tempGaugeHandle.addEventListener('touchstart', handleStart);
+            ELEMENTS.humidGaugeHandle.addEventListener('mousedown', handleStart);
+            ELEMENTS.humidGaugeHandle.addEventListener('touchstart', handleStart);
+
+            ELEMENTS.powerToggle.addEventListener('click', () => {
+                isPowerOn = !isPowerOn;
+                
+                if (isPowerOn) {
+                    showMessage("Máy lạnh đang khởi động...");
+                } else {
+                    showMessage("Máy lạnh đã tắt.");
+                }
+
+                updateUI(); 
+                saveStateToFirestore(); 
+            });
+
+            ELEMENTS.fanControlContainer.addEventListener('click', (event) => {
+                const button = event.target.closest('.fan-level');
+                if (button && isPowerOn) {
+                    const newFanSpeed = parseInt(button.getAttribute('data-speed'));
+                    if (newFanSpeed !== fanSpeed) {
+                        fanSpeed = newFanSpeed;
+                        updateUI();
+                        showMessage(`Quạt: Tốc độ ${fanSpeed}`);
+                        saveStateToFirestore(); 
+                    }
+                }
+            });
+            
+            window.addEventListener('resize', updateGaugeMetrics);
+        }
+
+
+        // --- KHỞI TẠO ---
+        window.onload = () => {
+            setupFirebase();
+            updateGaugeMetrics();
+            setupEventListeners();
+            updateUI(); // Cập nhật UI với giá trị mặc định cho đến khi Firestore load xong
+        };
+    </script>
+</body>
+</html>
